@@ -52,9 +52,23 @@
   .hide-sm { display: none; }
   @media (min-width: 560px) { .hide-sm { display: table-cell; } }
   .empty { padding: 20px; text-align: center; color: var(--muted); }
+  #gate { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; padding: 16px; }
+  #gate[hidden] { display: none; }
+  #gateForm { padding: 20px; width: min(360px, 100%); }
+  #gateForm h1 { margin-top: 0; }
+  #gateForm input { width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 </style>
 </head>
 <body>
+<div id="gate">
+  <form id="gateForm" class="card">
+    <h1>Mini <span>Prem</span></h1>
+    <p style="color:var(--muted)">Enter your league code.</p>
+    <input type="password" id="code" autocomplete="off" aria-label="League code">
+    <p id="gateErr" style="color:var(--accent2);min-height:1.4em;margin:6px 0"></p>
+    <button type="submit">Enter</button>
+  </form>
+</div>
 <main>
   <h1>Mini <span>Prem</span></h1>
 
@@ -71,6 +85,7 @@
     <button id="export">Copy backup</button>
     <button id="import">Paste backup</button>
     <button id="reset" class="danger">Reset scores</button>
+    <button id="lock">Change code</button>
   </div>
   <p id="status" style="color:var(--muted);font-size:13px">Connecting…</p>
 </main>
@@ -90,7 +105,12 @@ const app = initializeApp({
   appId: "1:361716883278:web:1429d43c2f2318efc3081f",
 });
 const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
-const leagueRef = doc(db, 'leagues', 'main');
+// The league lives at leagues/<sha256(code)>. Only someone who knows the code can find it;
+// the Firestore rules allow single-document access but no listing.
+let leagueRef = null, unsub = null;
+const CODE_KEY = 'mini-prem-code';
+const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))]
+  .map(b => b.toString(16).padStart(2, '0')).join('');
 setTimeout(() => {
   if (document.getElementById('status').textContent === 'Connecting…')
     setStatus('Cannot reach the shared league (check Firestore is created and its rules allow access). Saving on this device only.');
@@ -232,15 +252,45 @@ document.getElementById('import').onclick = () => {
 
 renderAll();
 
-// Live sync: everyone who opens the page sees the same league.
-onSnapshot(leagueRef, snap => {
-  if (!snap.exists()) { remote(setDoc(leagueRef, state)); return; }   // first ever open: seed the cloud
-  setStatus('Live: shared with everyone');
-  if (snap.metadata.hasPendingWrites) return;                          // our own edit, already shown
-  const d = snap.data();
-  state = { teams: d.teams || state.teams, results: d.results || {} };
-  save(); renderAll();
-}, err => { console.error(err); setStatus('Offline: changes are only saved on this device'); });
+// Live sync: everyone with the code sees the same league.
+async function start(code) {
+  if (unsub) unsub();
+  setStatus('Connecting…');
+  leagueRef = doc(db, 'leagues', await sha256(code));
+  unsub = onSnapshot(leagueRef, snap => {
+    if (!snap.exists()) {
+      // Unknown code: ask before creating, so a typo doesn't silently start an empty league.
+      if (confirm('No league found for this code. Create a new one?')) remote(setDoc(leagueRef, state));
+      else lock();
+      return;
+    }
+    setStatus('Live: shared with everyone who has the code');
+    if (snap.metadata.hasPendingWrites) return;                        // our own edit, already shown
+    const d = snap.data();
+    state = { teams: d.teams || state.teams, results: d.results || {} };
+    save(); renderAll();
+  }, err => { console.error(err); setStatus('Offline: changes are only saved on this device'); });
+}
+
+const gate = document.getElementById('gate'), codeInput = document.getElementById('code');
+function lock() {
+  if (unsub) unsub(); unsub = null; leagueRef = null;
+  try { localStorage.removeItem(CODE_KEY); } catch {}
+  gate.hidden = false; codeInput.value = ''; codeInput.focus();
+}
+document.getElementById('gateForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const code = codeInput.value.trim();
+  if (code.length < 8) { document.getElementById('gateErr').textContent = 'Code must be at least 8 characters.'; return; }
+  document.getElementById('gateErr').textContent = '';
+  try { localStorage.setItem(CODE_KEY, code); } catch {}
+  gate.hidden = true; start(code);
+});
+document.getElementById('lock').onclick = lock;
+
+let saved = null;
+try { saved = localStorage.getItem(CODE_KEY); } catch {}
+if (saved) { gate.hidden = true; start(saved); } else codeInput.focus();
 </script>
 </body>
 </html>
