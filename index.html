@@ -10,6 +10,7 @@
     --accent: #00ff85; --accent2: #e90052; --win: #00c46a; --draw: #8a7fa3; --loss: #e90052;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, sans-serif; }
   main { max-width: 760px; margin: 0 auto; padding: 16px; }
   h1 { margin: 8px 0 16px; font-size: 28px; letter-spacing: -.5px; }
@@ -30,29 +31,22 @@
   .form { display: inline-flex; gap: 3px; }
   .dot { width: 18px; height: 18px; border-radius: 50%; font-size: 10px; line-height: 18px; font-weight: 700; color: #000; }
   .dot.W { background: var(--win); } .dot.D { background: var(--draw); } .dot.L { background: var(--loss); color: #fff; }
-  .md { padding: 8px 12px; font-size: 12px; color: var(--muted); background: #170d29; border-bottom: 1px solid var(--line); }
-  .fx { display: grid; grid-template-columns: 1fr 44px 14px 44px 1fr; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-  .fx:last-child { border-bottom: 0; }
-  .fx .h { text-align: right; } .fx .a { text-align: left; }
-  .fx .h, .fx .a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fx.played .h, .fx.played .a { color: var(--text); }
-  .fx:not(.played) .h, .fx:not(.played) .a { color: var(--muted); }
-  .fx > span.dash { text-align: center; color: var(--muted); }
-  input[type=number] { width: 100%; padding: 8px 4px; text-align: center; background: var(--bg); color: var(--text);
+  input[type=number], input[type=text], select { width: 100%; padding: 8px 10px; background: var(--bg); color: var(--text);
     border: 1px solid var(--line); border-radius: 8px; font: inherit; -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button { display: none; }
-  input[type=number]:focus, input[type=text]:focus { outline: 2px solid var(--accent); border-color: transparent; }
-  .teams { padding: 12px; display: grid; gap: 8px; }
-  .teams div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  input[type=text] { width: 100%; padding: 8px 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .players { padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; font: inherit; cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button.danger:hover { border-color: var(--accent2); color: var(--accent2); }
+  button.primary { background: var(--accent); color: #12081f; border-color: var(--accent); font-weight: 700; }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .35; cursor: not-allowed; filter: none; }
+  button.big { font-size: 22px; padding: 20px; }
   .hide-sm { display: none; }
   @media (min-width: 560px) { .hide-sm { display: table-cell; } }
   .empty { padding: 20px; text-align: center; color: var(--muted); }
-  [hidden] { display: none !important; }
   .lg { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 14px 16px;
     background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; text-align: left; }
   .lg:last-child { border-bottom: 0; }
@@ -60,34 +54,53 @@
   .lg b { display: block; font-size: 17px; }
   .lg small { color: var(--muted); }
   .lg .go { color: var(--accent); }
-  button.primary { background: var(--accent); color: #12081f; border-color: var(--accent); font-weight: 700; }
-  button.primary:hover { filter: brightness(1.1); }
-  .startbox { padding: 12px; display: grid; gap: 10px; }
-  .startbox select { width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
-  .startbox label { color: var(--muted); font-size: 14px; flex: 1; }
-  .startbox input { width: 64px; padding: 8px; text-align: center; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
-  #matchView { position: fixed; inset: 0; z-index: 9; background: var(--bg); display: flex; flex-direction: column; padding: 16px; gap: 12px;
-    max-width: 560px; margin: 0 auto; overflow-y: auto; }
+  .mrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: center; }
+  .mrow:last-child { border-bottom: 0; }
+  .mrow small { grid-column: 1; color: var(--muted); }
+  .mrow button { grid-row: 1 / span 2; grid-column: 2; padding: 4px 10px; color: var(--muted); }
+  .sc { display: flex; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  .sc:last-child { border-bottom: 0; }
+  .sc b { color: var(--accent); }
+  .overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; padding: 16px; gap: 12px; overflow-y: auto; }
+  .overlay > * { width: 100%; max-width: 560px; margin-left: auto; margin-right: auto; }
   .mv-top { display: flex; justify-content: space-between; align-items: center; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; font-size: 13px; }
+  #lineup { z-index: 8; }
+  #matchView { z-index: 9; }
+  #gate { z-index: 12; display: grid; place-items: center; }
+  #gateForm { padding: 20px; width: min(360px, 100%); }
+  #gateForm h1 { margin-top: 0; }
+  #gateForm input { padding: 10px; }
+  #scorer { position: fixed; inset: 0; z-index: 11; background: rgba(8, 3, 16, .88); display: grid; place-items: center; padding: 16px; }
+  #scorer .card { padding: 20px; width: min(360px, 100%); display: grid; gap: 10px; text-align: center; }
+  #scorer button { font-size: 20px; padding: 18px; }
+  /* line-up */
+  .zone { background: var(--card); border: 2px dashed var(--line); border-radius: 12px; padding: 10px; min-height: 96px; }
+  .zone h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+  .zone.over { border-color: var(--accent); }
+  .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 48px; }
+  .chip { padding: 14px 18px; border-radius: 999px; background: var(--accent); color: #12081f; font-weight: 700; font-size: 18px;
+    touch-action: none; user-select: none; cursor: grab; }
+  .chip.dragging { opacity: .3; }
+  .chip.ghost { position: fixed; z-index: 20; pointer-events: none; transform: translate(-50%, -50%); box-shadow: 0 8px 24px #000a; }
+  #lVs { text-align: center; min-height: 1.4em; color: var(--muted); }
+  #lineup label { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  #lineup label input { width: 72px; text-align: center; }
+  /* live match */
   #mClock { text-align: center; font-size: clamp(64px, 22vw, 120px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
   #mClock.done { color: var(--accent2); }
   .mv-score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; flex: 1; }
   .mv-score .vs { font-size: 40px; color: var(--muted); }
   .mv-score .side { display: grid; gap: 8px; text-align: center; }
   .mv-score .nm { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+  .mv-score .kind { font-size: 12px; color: var(--muted); margin-top: -6px; }
   .mv-score .num { font-size: clamp(64px, 24vw, 110px); font-weight: 800; line-height: 1; }
   .mv-score .plus { font-size: 32px; padding: 22px 0; background: var(--card); }
   .mv-score .minus { padding: 10px 0; color: var(--muted); }
-  button.big { font-size: 22px; padding: 20px; }
-  #gate { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; padding: 16px; }
-  #gate[hidden] { display: none; }
-  #gateForm { padding: 20px; width: min(360px, 100%); }
-  #gateForm h1 { margin-top: 0; }
-  #gateForm input { width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 </style>
 </head>
 <body>
-<div id="gate">
+<div id="gate" class="overlay">
   <form id="gateForm" class="card">
     <h1>Mini <span>Prem</span></h1>
     <p style="color:var(--muted)">Enter your league code.</p>
@@ -96,19 +109,33 @@
     <button type="submit">Enter</button>
   </form>
 </div>
-<div id="matchView" hidden>
+
+<div id="lineup" class="overlay" hidden>
+  <div class="mv-top"><span>Line-up</span><button id="lCancel">Cancel</button></div>
+  <p style="margin:0;color:var(--muted)">Drag the three of you into the two sides: 2 vs 1. (Tapping a name also moves it.)</p>
+  <div class="zone" data-zone="pool"><h3>Players</h3><div class="chips" id="cPool"></div></div>
+  <div class="zones">
+    <div class="zone" data-zone="A"><h3>Side A</h3><div class="chips" id="cA"></div></div>
+    <div class="zone" data-zone="B"><h3>Side B</h3><div class="chips" id="cB"></div></div>
+  </div>
+  <div id="lVs"></div>
+  <label>Half length <input type="number" id="mins" min="1" max="60" value="7" inputmode="numeric"> min</label>
+  <button id="lGo" class="primary big" disabled>Start match</button>
+</div>
+
+<div id="matchView" class="overlay" hidden>
   <div class="mv-top"><span id="mPhase"></span><button id="mCancel">Cancel match</button></div>
   <div id="mClock">7:00</div>
   <div class="mv-score">
     <div class="side">
-      <div class="nm" id="mHome"></div>
+      <div class="nm" id="mHome"></div><div class="kind" id="mHKind"></div>
       <div class="num" id="mHS">0</div>
       <button class="plus" id="mHplus">+1</button>
       <button class="minus" id="mHminus">&minus;1</button>
     </div>
     <div class="vs">:</div>
     <div class="side">
-      <div class="nm" id="mAway"></div>
+      <div class="nm" id="mAway"></div><div class="kind" id="mAKind"></div>
       <div class="num" id="mAS">0</div>
       <button class="plus" id="mAplus">+1</button>
       <button class="minus" id="mAminus">&minus;1</button>
@@ -116,6 +143,15 @@
   </div>
   <button id="mMain" class="primary big"></button>
 </div>
+
+<div id="scorer" hidden>
+  <div class="card">
+    <h2 style="margin:0">Who scored?</h2>
+    <button id="sP0"></button><button id="sP1"></button>
+    <button id="sCancel" style="font-size:16px;padding:10px;color:var(--muted)">Cancel</button>
+  </div>
+</div>
+
 <main>
   <h1>Mini <span>Prem</span></h1>
 
@@ -132,22 +168,19 @@
     <div class="row" style="margin:0 0 4px"><button id="back">&larr; All leagues</button></div>
     <h2 id="leagueName"></h2>
 
-    <div id="startBox" class="card startbox">
-      <select id="fixturePick" aria-label="Fixture"></select>
-      <div class="row" style="margin:0;align-items:center">
-        <label>Half length <input type="number" id="mins" min="1" max="60" value="7" inputmode="numeric"> min</label>
-        <button id="startMatch" class="primary">&#9917; Start match</button>
-      </div>
-    </div>
+    <button id="startMatch" class="primary big" style="width:100%">&#9917; Start match</button>
 
     <h2>Table</h2>
     <div class="card"><table id="table"></table></div>
 
-    <h2>Fixtures &amp; results</h2>
-    <div id="fixtures" class="card"></div>
+    <h2>Top scorers</h2>
+    <div class="card" id="scorers"></div>
 
-    <h2>Teams</h2>
-    <div class="card teams" id="teams"></div>
+    <h2>Matches</h2>
+    <div class="card" id="matches"></div>
+
+    <h2>Players</h2>
+    <div class="card players" id="players"></div>
 
     <div class="row">
       <button id="reset" class="danger">Reset scores</button>
@@ -161,7 +194,7 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
-import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, deleteField }
+import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove }
   from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
 // Web API keys are public identifiers; access is controlled by Firestore rules.
@@ -174,70 +207,51 @@ const app = initializeApp({
   appId: "1:361716883278:web:1429d43c2f2318efc3081f",
 });
 const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 // Data lives at groups/<sha256(code)>/leagues/<id>. Only someone who knows the code can find the group;
 // the Firestore rules allow access below a group path but never list the groups themselves.
 let leaguesCol = null, leagueRef = null, unsub = null;
-let leagues = {};            // id -> { name, teams, results, createdAt }
+let leagues = {};            // id -> { name, players, matches, createdAt }
 let currentId = null;        // open league, or null for the dashboard
+let state = null;            // the open league
 const CODE_KEY = 'mini-prem-code';
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))]
   .map(b => b.toString(16).padStart(2, '0')).join('');
-const setStatus = (t) => { document.getElementById('status').textContent = t; };
-const remote = (p) => p.catch(err => { console.error(err); setStatus('Could not save: ' + (err.code || 'offline')); });
+const setStatus = t => { $('status').textContent = t; };
+const remote = p => p.catch(err => { console.error(err); setStatus('Could not save: ' + (err.code || 'offline')); });
 
-// state of the open league: teams [{name, owner}], results { "h-a": [hg, ag] }
-const defaults = () => ({
-  teams: [
-    { name: 'Team 1', owner: 'Me' },     { name: 'Team 2', owner: 'Me' },
-    { name: 'Team 3', owner: 'Friend 1' }, { name: 'Team 4', owner: 'Friend 1' },
-    { name: 'Team 5', owner: 'Friend 2' }, { name: 'Team 6', owner: 'Friend 2' },
-  ],
-  results: {},
-});
-let state = defaults();
-const save = () => {};
+// ---- Model ----
+// Three players. Six teams: the three players alone (team 0-2) and the three pairs (team 3-5).
+// A match is always a pair against the remaining player, so there are only three possible match-ups.
+// Match k = player k plays alone against the other two; the pair team is 5 - k.
+// A stored match: { id, t, k, dg (pair goals), sg (solo goals), goals: [{ s: 'd'|'s', p: scorer index }] }
+const DEFAULT_PLAYERS = ['Leo', 'Lukas', 'Tom'];
+const pairOf = k => [0, 1, 2].filter(x => x !== k);
+const teamName = (pl, i) => i < 3 ? pl[i] : pairOf(5 - i).map(x => pl[x]).join(' & ');
 
-// Double round-robin (circle method): everyone plays everyone home and away.
-function buildRounds(n) {
-  const ids = [...Array(n).keys()], rounds = [];
-  for (let r = 0; r < n - 1; r++) {
-    const m = [];
-    for (let i = 0; i < n / 2; i++) {
-      const a = ids[i], b = ids[n - 1 - i];
-      m.push(r % 2 ? [b, a] : [a, b]);
-    }
-    rounds.push(m);
-    ids.splice(1, 0, ids.pop());
-  }
-  return [...rounds, ...rounds.map(rd => rd.map(([h, a]) => [a, h]))];
-}
-const rounds = buildRounds(6);
-
-function standings(s = state) {
-  const rows = s.teams.map((t, i) => ({ i, ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
-  for (const rd of rounds) for (const [h, a] of rd) {
-    const r = s.results[h + '-' + a];
-    if (!r) continue;
-    const [hg, ag] = r, H = rows[h], A = rows[a];
-    H.p++; A.p++; H.gf += hg; H.ga += ag; A.gf += ag; A.ga += hg;
-    if (hg > ag) { H.w++; A.l++; H.form.push('W'); A.form.push('L'); }
-    else if (hg < ag) { A.w++; H.l++; H.form.push('L'); A.form.push('W'); }
-    else { H.d++; A.d++; H.form.push('D'); A.form.push('D'); }
-  }
+function standings(l) {
+  const rows = [0, 1, 2, 3, 4, 5].map(i => ({ i, name: teamName(l.players, i), kind: i < 3 ? 'Solo' : 'Pair',
+    p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
+  const add = (r, gf, ga) => {
+    r.p++; r.gf += gf; r.ga += ga;
+    if (gf > ga) { r.w++; r.form.push('W'); } else if (gf < ga) { r.l++; r.form.push('L'); } else { r.d++; r.form.push('D'); }
+  };
+  for (const m of [...l.matches].sort((a, b) => a.t - b.t)) { add(rows[m.k], m.sg, m.dg); add(rows[5 - m.k], m.dg, m.sg); }
   rows.forEach(r => { r.gd = r.gf - r.ga; r.pts = r.w * 3 + r.d; });
   return rows.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.name.localeCompare(y.name));
 }
 
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
+// ---- League view ----
 function renderTable() {
-  const rows = standings();
-  document.getElementById('table').innerHTML =
+  const rows = standings(state);
+  $('table').innerHTML =
     `<thead><tr><th>#</th><th class="team">Team</th><th>P</th><th>W</th><th>D</th><th>L</th>
      <th class="hide-sm">GF</th><th class="hide-sm">GA</th><th>GD</th><th>Pts</th><th class="hide-sm">Form</th></tr></thead><tbody>` +
     rows.map((r, k) => `<tr class="${k === 0 && r.p ? 'first' : ''}">
       <td class="pos">${k + 1}</td>
-      <td class="team">${esc(r.name)}<span class="owner">${esc(r.owner)}</span></td>
+      <td class="team">${esc(r.name)}<span class="owner">${r.kind}</span></td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
       <td class="hide-sm">${r.gf}</td><td class="hide-sm">${r.ga}</td>
       <td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td class="pts">${r.pts}</td>
@@ -245,68 +259,57 @@ function renderTable() {
     </tr>`).join('') + '</tbody>';
 }
 
-function renderFixtures() {
-  const el = document.getElementById('fixtures');
-  el.innerHTML = rounds.map((rd, k) => `<div class="md">Matchday ${k + 1}</div>` + rd.map(([h, a]) => {
-    const r = state.results[h + '-' + a];
-    return `<div class="fx ${r ? 'played' : ''}">
-      <span class="h">${esc(state.teams[h].name)}</span>
-      <input type="number" min="0" inputmode="numeric" data-k="${h}-${a}" data-s="0" value="${r ? r[0] : ''}" aria-label="Home goals">
-      <span class="dash">-</span>
-      <input type="number" min="0" inputmode="numeric" data-k="${h}-${a}" data-s="1" value="${r ? r[1] : ''}" aria-label="Away goals">
-      <span class="a">${esc(state.teams[a].name)}</span>
-    </div>`;
-  }).join('')).join('');
+function renderScorers() {
+  const n = [0, 0, 0];
+  state.matches.forEach(m => m.goals.forEach(g => { if (g.p >= 0 && g.p < 3) n[g.p]++; }));
+  $('scorers').innerHTML = [0, 1, 2].sort((a, b) => n[b] - n[a])
+    .map(i => `<div class="sc"><span>${esc(state.players[i])}</span><b>${n[i]}</b></div>`).join('');
 }
 
-// Only update a result when both boxes are filled; clear it when both are empty.
-document.getElementById('fixtures').addEventListener('change', e => {
-  const k = e.target.dataset.k;
-  if (!k) return;
-  const [hi, ai] = [...document.querySelectorAll(`input[data-k="${k}"]`)];
-  const hv = hi.value.trim(), av = ai.value.trim();
-  if (hv === '' && av === '') {
-    delete state.results[k];
-    remote(updateDoc(leagueRef, { ['results.' + k]: deleteField() }));
-  } else if (hv !== '' && av !== '') {
-    state.results[k] = [Math.max(0, +hv | 0), Math.max(0, +av | 0)];
-    remote(setDoc(leagueRef, { results: { [k]: state.results[k] } }, { merge: true }));
-  } else return;
-  save(); renderTable();
-  hi.closest('.fx').classList.toggle('played', !!state.results[k]);
-});
-
-function renderTeams() {
-  document.getElementById('teams').innerHTML = state.teams.map((t, i) =>
-    `<div><input type="text" data-i="${i}" data-f="name" value="${esc(t.name)}" aria-label="Team name">
-          <input type="text" data-i="${i}" data-f="owner" value="${esc(t.owner)}" aria-label="Owner"></div>`).join('');
+function renderMatches() {
+  const pl = state.players;
+  $('matches').innerHTML = state.matches.length ? [...state.matches].sort((a, b) => b.t - a.t).map(m => {
+    const when = new Date(m.t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<div class="mrow"><span>${esc(teamName(pl, 5 - m.k))} <b>${m.dg} &ndash; ${m.sg}</b> ${esc(pl[m.k])}</span>
+      <small>${when}</small><button data-del="${esc(m.id)}" aria-label="Delete match">&#10005;</button></div>`;
+  }).join('') : '<div class="empty">No matches yet. Hit "Start match".</div>';
 }
-document.getElementById('teams').addEventListener('change', e => {
-  const { i, f } = e.target.dataset;
-  if (i === undefined) return;
-  state.teams[i][f] = e.target.value.trim() || state.teams[i][f];
-  save(); renderAll();
-  remote(setDoc(leagueRef, { teams: state.teams }, { merge: true }));
+$('matches').addEventListener('click', e => {
+  const id = e.target.closest('[data-del]')?.dataset.del; if (!id) return;
+  const m = state.matches.find(x => x.id === id);
+  if (!m || !confirm('Delete this match from the table?')) return;
+  state.matches = state.matches.filter(x => x.id !== id);
+  renderAll();
+  remote(updateDoc(leagueRef, { matches: arrayRemove(m) }));
 });
 
-function renderAll() { renderTable(); renderFixtures(); renderTeams(); renderStart(); }
+function renderPlayers() {
+  $('players').innerHTML = state.players.map((p, i) =>
+    `<input type="text" data-i="${i}" value="${esc(p)}" maxlength="16" aria-label="Player ${i + 1}">`).join('');
+}
+$('players').addEventListener('change', e => {
+  const i = e.target.dataset.i; if (i === undefined) return;
+  state.players[i] = e.target.value.trim() || state.players[i];
+  renderAll();
+  remote(updateDoc(leagueRef, { players: state.players }));
+});
 
-document.getElementById('reset').onclick = () => {
-  if (confirm('Clear ALL scores for everyone? Team names are kept.')) {
-    state.results = {}; renderAll();
-    remote(updateDoc(leagueRef, { results: {} }));
+function renderAll() { renderTable(); renderScorers(); renderMatches(); renderPlayers(); }
+
+$('reset').onclick = () => {
+  if (confirm('Delete ALL matches of this league for everyone? Players are kept.')) {
+    state.matches = []; renderAll();
+    remote(updateDoc(leagueRef, { matches: [] }));
   }
 };
 
 // ---- Dashboard / navigation ----
-const TOTAL = rounds.reduce((n, r) => n + r.length, 0);
-
 function renderDash() {
   const ids = Object.keys(leagues).sort((a, b) => (leagues[b].createdAt || 0) - (leagues[a].createdAt || 0));
-  document.getElementById('leagueList').innerHTML = ids.length ? ids.map(id => {
-    const l = leagues[id], played = Object.keys(l.results).length, top = standings(l)[0];
+  $('leagueList').innerHTML = ids.length ? ids.map(id => {
+    const l = leagues[id], n = l.matches.length, top = standings(l)[0];
     return `<button class="lg" data-id="${esc(id)}"><span><b>${esc(l.name)}</b>
-      <small>${played}/${TOTAL} played${played ? ' · Leader: ' + esc(top.name) + ' (' + top.pts + ' pts)' : ''}</small></span>
+      <small>${n} match${n === 1 ? '' : 'es'}${n ? ' · Leader: ' + esc(top.name) + ' (' + top.pts + ' pts)' : ''}</small></span>
       <span class="go">Open &rarr;</span></button>`;
   }).join('') : '<div class="empty">No leagues yet. If you expected some, check your code with "Change code".</div>';
 }
@@ -314,26 +317,24 @@ function renderDash() {
 function show() {
   const l = leagues[currentId];
   if (currentId && !l) currentId = null;
-  document.getElementById('dash').hidden = !!currentId;
-  document.getElementById('league').hidden = !currentId;
+  $('dash').hidden = !!currentId;
+  $('league').hidden = !currentId;
   if (currentId) {
     leagueRef = doc(leaguesCol, currentId);
-    state = l; document.getElementById('leagueName').textContent = l.name; renderAll();
+    state = l; $('leagueName').textContent = l.name; renderAll();
     if (!match) {                      // pick up a match that was running before a reload
       try {
-        const saved = JSON.parse(localStorage.getItem('mini-prem-match-' + currentId));
-        if (saved && l.teams[saved.h] && l.teams[saved.a]) { match = saved; openMatch(); }
+        const s = JSON.parse(localStorage.getItem('mini-prem-match-' + currentId));
+        if (s && Array.isArray(s.A) && Array.isArray(s.B) && s.A.length + s.B.length === 3) { match = s; openMatch(); }
       } catch {}
     }
   } else { leagueRef = null; renderDash(); }
 }
 function openLeague(id) { currentId = id; history.replaceState(null, '', id ? '#' + id : location.pathname); show(); window.scrollTo(0, 0); }
 
-document.getElementById('leagueList').addEventListener('click', e => {
-  const b = e.target.closest('.lg'); if (b) openLeague(b.dataset.id);
-});
-document.getElementById('back').onclick = () => openLeague(null);
-document.getElementById('delLeague').onclick = () => {
+$('leagueList').addEventListener('click', e => { const b = e.target.closest('.lg'); if (b) openLeague(b.dataset.id); });
+$('back').onclick = () => openLeague(null);
+$('delLeague').onclick = () => {
   const id = currentId;
   if (!id || !confirm(`Delete "${leagues[id].name}" for everyone? This cannot be undone.`)) return;
   const ref = doc(leaguesCol, id);
@@ -341,42 +342,77 @@ document.getElementById('delLeague').onclick = () => {
   openLeague(null);
   remote(deleteDoc(ref));
 };
-document.getElementById('newLeague').addEventListener('submit', e => {
+$('newLeague').addEventListener('submit', e => {
   e.preventDefault();
-  const input = document.getElementById('newName'), name = input.value.trim();
+  const name = $('newName').value.trim();
   if (!name || !leaguesCol) return;
   const ref = doc(leaguesCol);
-  const l = { name, ...defaults(), createdAt: Date.now() };
-  leagues[ref.id] = l; input.value = '';
+  const l = { name, players: [...DEFAULT_PLAYERS], matches: [], createdAt: Date.now() };
+  leagues[ref.id] = l; $('newName').value = '';
   remote(setDoc(ref, l));
   openLeague(ref.id);
 });
 
-// ---- Live match: score taps + half timers, result goes into the table at full time ----
+// ---- Line-up: drag the three players into two sides (2 vs 1, never 3 vs 0) ----
+let lu = { pool: [0, 1, 2], A: [], B: [] };
+const ZONES = ['pool', 'A', 'B'];
+const zoneOf = p => ZONES.find(z => lu[z].includes(p));
+function placeChip(p, zone) {
+  if (zone !== 'pool' && lu[zone].length >= 2 && !lu[zone].includes(p)) return false;   // a side holds two at most
+  ZONES.forEach(z => { lu[z] = lu[z].filter(x => x !== p); });
+  lu[zone].push(p); return true;
+}
+function renderLineup() {
+  const pl = state.players, chip = p => `<div class="chip" data-p="${p}">${esc(pl[p])}</div>`;
+  $('cPool').innerHTML = lu.pool.map(chip).join(''); $('cA').innerHTML = lu.A.map(chip).join(''); $('cB').innerHTML = lu.B.map(chip).join('');
+  const ok = lu.A.length + lu.B.length === 3;
+  $('lGo').disabled = !ok;
+  const side = z => lu[z].map(p => pl[p]).join(' & ');
+  $('lVs').textContent = ok ? `${side('A')}  vs  ${side('B')}` : 'Place all three players.';
+}
+$('lineup').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  e.preventDefault();
+  const p = +c.dataset.p, sx = e.clientX, sy = e.clientY;
+  const ghost = c.cloneNode(true); ghost.classList.add('ghost'); document.body.appendChild(ghost);
+  let moved = false;
+  const place = ev => { ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; };
+  place(e);
+  const zoneAt = ev => document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-zone]')?.dataset.zone;
+  const move = ev => {
+    if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 8) { moved = true; c.classList.add('dragging'); }
+    place(ev);
+    document.querySelectorAll('.zone').forEach(z => z.classList.toggle('over', moved && z.dataset.zone === zoneAt(ev)));
+  };
+  const up = ev => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointercancel', up);
+    ghost.remove(); document.querySelectorAll('.zone').forEach(z => z.classList.remove('over'));
+    if (moved) { const z = zoneAt(ev); if (z) placeChip(p, z); }
+    else {                                               // tap: send to the next zone that has room
+      const from = ZONES.indexOf(zoneOf(p));
+      for (let s = 1; s <= 3; s++) if (placeChip(p, ZONES[(from + s) % 3])) break;
+    }
+    renderLineup();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up, { once: true }); window.addEventListener('pointercancel', up, { once: true });
+});
+$('startMatch').onclick = () => {
+  lu = { pool: [0, 1, 2], A: [], B: [] };
+  try { $('mins').value = localStorage.getItem('mini-prem-mins') || $('mins').value; } catch {}
+  $('lineup').hidden = false; renderLineup();
+};
+$('lCancel').onclick = () => { $('lineup').hidden = true; };
+
+// ---- Live match: score taps, who-scored question for the pair, half timers ----
 // phases: ready -> h1 -> ht (half time) -> h2 -> ft (full time). The clock runs off timestamps,
 // and the match is kept in localStorage, so a locked phone or reload doesn't lose it.
-const mv = document.getElementById('matchView');
 let match = null, tickId = null, audioCtx = null, wake = null;
-const matchKey = lid => 'mini-prem-match-' + lid;
 const PHASE = { ready: 'Ready', h1: '1st half', ht: 'Half time', h2: '2nd half', ft: 'Full time' };
-const $ = id => document.getElementById(id);
-const saveMatch = () => { try { localStorage.setItem(matchKey(match.lid), JSON.stringify(match)); } catch {} };
+const saveMatch = () => { try { localStorage.setItem('mini-prem-match-' + match.lid, JSON.stringify(match)); } catch {} };
+const goalsOf = s => match.goals.filter(g => g.s === s).length;
+const sideName = s => match[s].map(p => state.players[p]).join(' & ');
 
-function renderStart() {
-  const opts = [];
-  rounds.forEach((rd, k) => rd.forEach(([h, a]) => {
-    if (!state.results[h + '-' + a]) opts.push(`<option value="${h}-${a}">MD ${k + 1}: ${esc(state.teams[h].name)} vs ${esc(state.teams[a].name)}</option>`);
-  }));
-  const sel = $('fixturePick'), keep = sel.value;
-  sel.innerHTML = opts.join('');
-  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
-  $('startBox').hidden = !opts.length;
-  if (document.activeElement !== $('mins')) { try { $('mins').value = localStorage.getItem('mini-prem-mins') || $('mins').value; } catch {} }
-}
-
-function unlockAudio() {
-  try { audioCtx ||= new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch {}
-}
+function unlockAudio() { try { audioCtx ||= new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch {} }
 function alarm() {
   try { navigator.vibrate?.([400, 200, 400, 200, 800]); } catch {}
   const c = audioCtx; if (!c) return;
@@ -392,10 +428,11 @@ function wakeOff() { try { wake?.release(); } catch {} wake = null; }
 document.addEventListener('visibilitychange', () => { if (match && document.visibilityState === 'visible') { wakeOn(); tick(); } });
 
 function renderMatch() {
-  const m = match, t = state.teams, left = m.running ? Math.max(0, m.endAt - Date.now()) : m.remMs, s = Math.ceil(left / 1000);
-  $('mHome').textContent = t[m.h].name; $('mAway').textContent = t[m.a].name;
-  $('mHS').textContent = m.hs; $('mAS').textContent = m.as;
-  $('mPhase').textContent = PHASE[m.phase] + (m.running || m.phase === 'ready' || m.phase === 'ht' || m.phase === 'ft' ? '' : ' · paused');
+  const m = match, left = m.running ? Math.max(0, m.endAt - Date.now()) : m.remMs, s = Math.ceil(left / 1000);
+  $('mHome').textContent = sideName('A'); $('mAway').textContent = sideName('B');
+  $('mHKind').textContent = m.A.length === 2 ? 'Pair' : 'Solo'; $('mAKind').textContent = m.B.length === 2 ? 'Pair' : 'Solo';
+  $('mHS').textContent = goalsOf('A'); $('mAS').textContent = goalsOf('B');
+  $('mPhase').textContent = PHASE[m.phase] + (!m.running && (m.phase === 'h1' || m.phase === 'h2') ? ' · paused' : '');
   $('mClock').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   $('mClock').classList.toggle('done', m.phase === 'ht' || m.phase === 'ft');
   $('mMain').textContent = { ready: 'Kick off', ht: 'Start 2nd half', ft: 'Finish & update table' }[m.phase] || (m.running ? 'Pause' : 'Resume');
@@ -410,13 +447,13 @@ function tick() {
   renderMatch();
 }
 function openMatch() {
-  mv.hidden = false; renderMatch();
+  $('lineup').hidden = true; $('matchView').hidden = false; renderMatch();
   clearInterval(tickId); tickId = setInterval(tick, 250);
   if (match.running || match.phase !== 'ready') wakeOn();
 }
 function closeMatch() {
-  clearInterval(tickId); mv.hidden = true; wakeOff();
-  try { localStorage.removeItem(matchKey(match.lid)); } catch {}
+  clearInterval(tickId); $('matchView').hidden = true; wakeOff();
+  try { localStorage.removeItem('mini-prem-match-' + match.lid); } catch {}
   match = null;
 }
 function begin(phase) {
@@ -424,11 +461,11 @@ function begin(phase) {
   match.phase = phase; match.remMs = match.mins * 60000; match.endAt = Date.now() + match.remMs; match.running = true;
   saveMatch(); wakeOn(); renderMatch();
 }
-$('startMatch').onclick = () => {
-  const v = $('fixturePick').value; if (!v) return;
-  const [h, a] = v.split('-').map(Number), mins = Math.min(60, Math.max(1, +$('mins').value || 7));
+$('lGo').onclick = () => {
+  unlockAudio();
+  const mins = Math.min(60, Math.max(1, +$('mins').value || 7));
   try { localStorage.setItem('mini-prem-mins', mins); } catch {}
-  match = { lid: currentId, h, a, hs: 0, as: 0, phase: 'ready', running: false, mins, remMs: mins * 60000, endAt: 0 };
+  match = { lid: currentId, A: [...lu.A], B: [...lu.B], goals: [], phase: 'ready', running: false, mins, remMs: mins * 60000, endAt: 0 };
   saveMatch(); openMatch();
 };
 $('mMain').onclick = () => {
@@ -437,23 +474,31 @@ $('mMain').onclick = () => {
   if (m.phase === 'ready') begin('h1');
   else if (m.phase === 'ht') begin('h2');
   else if (m.phase === 'ft') {
-    const k = m.h + '-' + m.a;
-    state.results[k] = [m.hs, m.as];
-    remote(setDoc(doc(leaguesCol, m.lid), { results: { [k]: [m.hs, m.as] } }, { merge: true }));
+    const dS = m.A.length === 2 ? 'A' : 'B', sS = dS === 'A' ? 'B' : 'A';
+    const rec = { id: Date.now().toString(36), t: Date.now(), k: m[sS][0], dg: goalsOf(dS), sg: goalsOf(sS),
+      goals: m.goals.map(g => ({ s: g.s === dS ? 'd' : 's', p: g.p })) };
+    state.matches.push(rec);
+    remote(updateDoc(doc(leaguesCol, m.lid), { matches: arrayUnion(rec) }));
     closeMatch(); renderAll();
   } else if (m.running) { m.remMs = Math.max(0, m.endAt - Date.now()); m.running = false; saveMatch(); renderMatch(); }
   else { m.endAt = Date.now() + m.remMs; m.running = true; saveMatch(); renderMatch(); }
 };
-const bump = (side, d) => () => {
-  unlockAudio();
-  match[side] = Math.max(0, match[side] + d); saveMatch(); renderMatch();
-  try { navigator.vibrate?.(30); } catch {}
-};
-$('mHplus').onclick = bump('hs', 1); $('mHminus').onclick = bump('hs', -1);
-$('mAplus').onclick = bump('as', 1); $('mAminus').onclick = bump('as', -1);
+// A goal for the solo player needs no question; for a pair we ask which of the two scored.
+function goal(s) {
+  const ps = match[s];
+  if (ps.length === 1) { match.goals.push({ s, p: ps[0] }); saveMatch(); renderMatch(); return; }
+  $('sP0').textContent = state.players[ps[0]]; $('sP1').textContent = state.players[ps[1]];
+  $('sP0').onclick = () => pick(s, ps[0]); $('sP1').onclick = () => pick(s, ps[1]);
+  $('scorer').hidden = false;
+}
+function pick(s, p) { $('scorer').hidden = true; match.goals.push({ s, p }); saveMatch(); renderMatch(); try { navigator.vibrate?.(30); } catch {} }
+$('sCancel').onclick = () => { $('scorer').hidden = true; };
+const undo = s => { const i = match.goals.map(g => g.s).lastIndexOf(s); if (i >= 0) { match.goals.splice(i, 1); saveMatch(); renderMatch(); } };
+$('mHplus').onclick = () => goal('A'); $('mAplus').onclick = () => goal('B');
+$('mHminus').onclick = () => undo('A'); $('mAminus').onclick = () => undo('B');
 $('mCancel').onclick = () => { if (confirm('Cancel this match? The score is lost.')) closeMatch(); };
 
-// Live sync: everyone with the code sees the same leagues.
+// ---- Live sync: everyone with the code sees the same leagues ----
 async function start(code) {
   if (unsub) unsub();
   setStatus('Connecting…');
@@ -461,7 +506,11 @@ async function start(code) {
   unsub = onSnapshot(leaguesCol, snap => {
     setStatus('Live: shared with everyone who has the code');
     const next = {};
-    snap.forEach(d => { const v = d.data(); next[d.id] = { name: v.name || 'League', teams: v.teams || defaults().teams, results: v.results || {}, createdAt: v.createdAt || 0 }; });
+    snap.forEach(d => {
+      const v = d.data();
+      next[d.id] = { name: v.name || 'League', players: Array.isArray(v.players) && v.players.length === 3 ? v.players : [...DEFAULT_PLAYERS],
+        matches: Array.isArray(v.matches) ? v.matches : [], createdAt: v.createdAt || 0 };
+    });
     if (currentId && snap.metadata.hasPendingWrites && next[currentId]) next[currentId] = leagues[currentId] || next[currentId];  // our own edit, already shown
     leagues = next;
     if (!currentId) { const h = location.hash.slice(1); if (h && leagues[h]) currentId = h; }
@@ -469,22 +518,22 @@ async function start(code) {
   }, err => { console.error(err); setStatus('Cannot reach the leagues (' + (err.code || 'offline') + ')'); });
 }
 
-const gate = document.getElementById('gate'), codeInput = document.getElementById('code');
+const gate = $('gate'), codeInput = $('code');
 function lock() {
   if (unsub) unsub(); unsub = null; leaguesCol = leagueRef = null; leagues = {}; currentId = null;
   history.replaceState(null, '', location.pathname); show();
   try { localStorage.removeItem(CODE_KEY); } catch {}
   gate.hidden = false; codeInput.value = ''; codeInput.focus();
 }
-document.getElementById('gateForm').addEventListener('submit', e => {
+$('gateForm').addEventListener('submit', e => {
   e.preventDefault();
   const code = codeInput.value.trim();
-  if (code.length < 8) { document.getElementById('gateErr').textContent = 'Code must be at least 8 characters.'; return; }
-  document.getElementById('gateErr').textContent = '';
+  if (code.length < 8) { $('gateErr').textContent = 'Code must be at least 8 characters.'; return; }
+  $('gateErr').textContent = '';
   try { localStorage.setItem(CODE_KEY, code); } catch {}
   gate.hidden = true; start(code);
 });
-document.getElementById('lock').onclick = lock;
+$('lock').onclick = lock;
 
 let saved = null;
 try { saved = localStorage.getItem(CODE_KEY); } catch {}
