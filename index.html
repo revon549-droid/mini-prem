@@ -52,6 +52,14 @@
   .hide-sm { display: none; }
   @media (min-width: 560px) { .hide-sm { display: table-cell; } }
   .empty { padding: 20px; text-align: center; color: var(--muted); }
+  [hidden] { display: none !important; }
+  .lg { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 14px 16px;
+    background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; text-align: left; }
+  .lg:last-child { border-bottom: 0; }
+  .lg:hover { background: #170d29; }
+  .lg b { display: block; font-size: 17px; }
+  .lg small { color: var(--muted); }
+  .lg .go { color: var(--accent); }
   #gate { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: grid; place-items: center; padding: 16px; }
   #gate[hidden] { display: none; }
   #gateForm { padding: 20px; width: min(360px, 100%); }
@@ -72,27 +80,40 @@
 <main>
   <h1>Mini <span>Prem</span></h1>
 
-  <h2>Table</h2>
-  <div class="card"><table id="table"></table></div>
+  <section id="dash">
+    <h2>Your leagues</h2>
+    <div id="leagueList" class="card"></div>
+    <form id="newLeague" class="row">
+      <input type="text" id="newName" placeholder="New league name" maxlength="40" aria-label="New league name" style="flex:1;min-width:160px">
+      <button type="submit">Create league</button>
+    </form>
+  </section>
 
-  <h2>Fixtures &amp; results</h2>
-  <div id="fixtures" class="card"></div>
+  <section id="league" hidden>
+    <div class="row" style="margin:0 0 4px"><button id="back">&larr; All leagues</button></div>
+    <h2 id="leagueName"></h2>
 
-  <h2>Teams</h2>
-  <div class="card teams" id="teams"></div>
+    <h2>Table</h2>
+    <div class="card"><table id="table"></table></div>
 
-  <div class="row">
-    <button id="export">Copy backup</button>
-    <button id="import">Paste backup</button>
-    <button id="reset" class="danger">Reset scores</button>
-    <button id="lock">Change code</button>
-  </div>
+    <h2>Fixtures &amp; results</h2>
+    <div id="fixtures" class="card"></div>
+
+    <h2>Teams</h2>
+    <div class="card teams" id="teams"></div>
+
+    <div class="row">
+      <button id="reset" class="danger">Reset scores</button>
+    </div>
+  </section>
+
+  <div class="row"><button id="lock">Change code</button></div>
   <p id="status" style="color:var(--muted);font-size:13px">Connecting…</p>
 </main>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
-import { initializeFirestore, doc, onSnapshot, setDoc, updateDoc, deleteField }
+import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteField }
   from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
 // Web API keys are public identifiers; access is controlled by Firestore rules.
@@ -105,22 +126,18 @@ const app = initializeApp({
   appId: "1:361716883278:web:1429d43c2f2318efc3081f",
 });
 const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
-// The league lives at leagues/<sha256(code)>. Only someone who knows the code can find it;
-// the Firestore rules allow single-document access but no listing.
-let leagueRef = null, unsub = null;
+// Data lives at groups/<sha256(code)>/leagues/<id>. Only someone who knows the code can find the group;
+// the Firestore rules allow access below a group path but never list the groups themselves.
+let leaguesCol = null, leagueRef = null, unsub = null;
+let leagues = {};            // id -> { name, teams, results, createdAt }
+let currentId = null;        // open league, or null for the dashboard
 const CODE_KEY = 'mini-prem-code';
 const sha256 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))]
   .map(b => b.toString(16).padStart(2, '0')).join('');
-setTimeout(() => {
-  if (document.getElementById('status').textContent === 'Connecting…')
-    setStatus('Cannot reach the shared league (check Firestore is created and its rules allow access). Saving on this device only.');
-}, 10000);
-const remote = (p) => p.catch(err => { console.error(err); setStatus('Offline: changes are only saved on this device'); });
 const setStatus = (t) => { document.getElementById('status').textContent = t; };
+const remote = (p) => p.catch(err => { console.error(err); setStatus('Could not save: ' + (err.code || 'offline')); });
 
-const KEY = 'mini-prem-v1';
-
-// state: teams [{name, owner}], results { "h-a": [hg, ag] }
+// state of the open league: teams [{name, owner}], results { "h-a": [hg, ag] }
 const defaults = () => ({
   teams: [
     { name: 'Team 1', owner: 'Me' },     { name: 'Team 2', owner: 'Me' },
@@ -129,10 +146,8 @@ const defaults = () => ({
   ],
   results: {},
 });
-
-let state;
-try { state = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch { state = defaults(); }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+let state = defaults();
+const save = () => {};
 
 // Double round-robin (circle method): everyone plays everyone home and away.
 function buildRounds(n) {
@@ -150,10 +165,10 @@ function buildRounds(n) {
 }
 const rounds = buildRounds(6);
 
-function standings() {
-  const rows = state.teams.map((t, i) => ({ i, ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
+function standings(s = state) {
+  const rows = s.teams.map((t, i) => ({ i, ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
   for (const rd of rounds) for (const [h, a] of rd) {
-    const r = state.results[h + '-' + a];
+    const r = s.results[h + '-' + a];
     if (!r) continue;
     const [hg, ag] = r, H = rows[h], A = rows[a];
     H.p++; A.p++; H.gf += hg; H.ga += ag; A.gf += ag; A.ga += hg;
@@ -230,51 +245,71 @@ function renderAll() { renderTable(); renderFixtures(); renderTeams(); }
 
 document.getElementById('reset').onclick = () => {
   if (confirm('Clear ALL scores for everyone? Team names are kept.')) {
-    state.results = {}; save(); renderAll();
-    remote(setDoc(leagueRef, { teams: state.teams, results: {} }));
+    state.results = {}; renderAll();
+    remote(updateDoc(leagueRef, { results: {} }));
   }
 };
-document.getElementById('export').onclick = async () => {
-  const txt = JSON.stringify(state);
-  try { await navigator.clipboard.writeText(txt); alert('Backup copied. Paste it somewhere safe.'); }
-  catch { prompt('Copy this backup:', txt); }
-};
-document.getElementById('import').onclick = () => {
-  const txt = prompt('Paste backup:');
-  if (!txt) return;
-  try {
-    const s = JSON.parse(txt);
-    if (!Array.isArray(s.teams) || s.teams.length !== 6 || typeof s.results !== 'object') throw 0;
-    state = s; save(); renderAll();
-    remote(setDoc(leagueRef, state));
-  } catch { alert("That doesn't look like a Mini Prem backup."); }
-};
 
-renderAll();
+// ---- Dashboard / navigation ----
+const TOTAL = rounds.reduce((n, r) => n + r.length, 0);
 
-// Live sync: everyone with the code sees the same league.
+function renderDash() {
+  const ids = Object.keys(leagues).sort((a, b) => (leagues[b].createdAt || 0) - (leagues[a].createdAt || 0));
+  document.getElementById('leagueList').innerHTML = ids.length ? ids.map(id => {
+    const l = leagues[id], played = Object.keys(l.results).length, top = standings(l)[0];
+    return `<button class="lg" data-id="${esc(id)}"><span><b>${esc(l.name)}</b>
+      <small>${played}/${TOTAL} played${played ? ' · Leader: ' + esc(top.name) + ' (' + top.pts + ' pts)' : ''}</small></span>
+      <span class="go">Open &rarr;</span></button>`;
+  }).join('') : '<div class="empty">No leagues yet. If you expected some, check your code with "Change code".</div>';
+}
+
+function show() {
+  const l = leagues[currentId];
+  if (currentId && !l) currentId = null;
+  document.getElementById('dash').hidden = !!currentId;
+  document.getElementById('league').hidden = !currentId;
+  if (currentId) {
+    leagueRef = doc(leaguesCol, currentId);
+    state = l; document.getElementById('leagueName').textContent = l.name; renderAll();
+  } else { leagueRef = null; renderDash(); }
+}
+function openLeague(id) { currentId = id; history.replaceState(null, '', id ? '#' + id : location.pathname); show(); window.scrollTo(0, 0); }
+
+document.getElementById('leagueList').addEventListener('click', e => {
+  const b = e.target.closest('.lg'); if (b) openLeague(b.dataset.id);
+});
+document.getElementById('back').onclick = () => openLeague(null);
+document.getElementById('newLeague').addEventListener('submit', e => {
+  e.preventDefault();
+  const input = document.getElementById('newName'), name = input.value.trim();
+  if (!name || !leaguesCol) return;
+  const ref = doc(leaguesCol);
+  const l = { name, ...defaults(), createdAt: Date.now() };
+  leagues[ref.id] = l; input.value = '';
+  remote(setDoc(ref, l));
+  openLeague(ref.id);
+});
+
+// Live sync: everyone with the code sees the same leagues.
 async function start(code) {
   if (unsub) unsub();
   setStatus('Connecting…');
-  leagueRef = doc(db, 'leagues', await sha256(code));
-  unsub = onSnapshot(leagueRef, snap => {
-    if (!snap.exists()) {
-      // Unknown code: ask before creating, so a typo doesn't silently start an empty league.
-      if (confirm('No league found for this code. Create a new one?')) remote(setDoc(leagueRef, state));
-      else lock();
-      return;
-    }
+  leaguesCol = collection(db, 'groups', await sha256(code), 'leagues');
+  unsub = onSnapshot(leaguesCol, snap => {
     setStatus('Live: shared with everyone who has the code');
-    if (snap.metadata.hasPendingWrites) return;                        // our own edit, already shown
-    const d = snap.data();
-    state = { teams: d.teams || state.teams, results: d.results || {} };
-    save(); renderAll();
-  }, err => { console.error(err); setStatus('Offline: changes are only saved on this device'); });
+    const next = {};
+    snap.forEach(d => { const v = d.data(); next[d.id] = { name: v.name || 'League', teams: v.teams || defaults().teams, results: v.results || {}, createdAt: v.createdAt || 0 }; });
+    if (currentId && snap.metadata.hasPendingWrites && next[currentId]) next[currentId] = leagues[currentId] || next[currentId];  // our own edit, already shown
+    leagues = next;
+    if (!currentId) { const h = location.hash.slice(1); if (h && leagues[h]) currentId = h; }
+    show();
+  }, err => { console.error(err); setStatus('Cannot reach the leagues (' + (err.code || 'offline') + ')'); });
 }
 
 const gate = document.getElementById('gate'), codeInput = document.getElementById('code');
 function lock() {
-  if (unsub) unsub(); unsub = null; leagueRef = null;
+  if (unsub) unsub(); unsub = null; leaguesCol = leagueRef = null; leagues = {}; currentId = null;
+  history.replaceState(null, '', location.pathname); show();
   try { localStorage.removeItem(CODE_KEY); } catch {}
   gate.hidden = false; codeInput.value = ''; codeInput.focus();
 }
