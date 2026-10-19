@@ -36,6 +36,8 @@
   input[type=number]::-webkit-inner-spin-button { display: none; }
   input:focus, select:focus { outline: 2px solid var(--accent); border-color: transparent; }
   .players { padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .players .pl { display: grid; gap: 6px; }
+  .players label { font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; font: inherit; cursor: pointer; }
   button:hover { border-color: var(--accent); }
@@ -241,6 +243,9 @@ const remote = p => p.catch(err => { console.error(err); setStatus('Could not sa
 // three possible match-ups. Match k = player k plays alone against the other two (the pair).
 // A stored match: { id, t, k, dg (pair goals), sg (solo goals), goals: [{ s: 'd'|'s', p: scorer index }] }
 const DEFAULT_PLAYERS = ['Leo', 'Lukas', 'Tom'];
+// Handicap: a player who plays alone against the other two starts with this many goals (per player, editable).
+// Leo alone 0-5, Lukas alone 0-0, Tom alone 0-3 (pair first, solo second).
+const DEFAULT_HANDICAP = [5, 0, 3];
 const pairOf = k => [0, 1, 2].filter(x => x !== k);
 const pairName = (pl, k) => pairOf(k).map(x => pl[x]).join(' & ');
 
@@ -285,19 +290,23 @@ function renderScorers() {
 
 // Goal timeline. goals: [{ side: 'L'|'R', p (scorer), m (minute), h (half) }], listed in time order with
 // the running score, an HT row before the 2nd half and an optional FT row.
-function timeline(goals, showHT, ftLabel) {
-  const gs = [...goals].sort((a, b) => (a.h || 1) - (b.h || 1) || (a.m || 0) - (b.m || 0));
-  let l = 0, r = 0, html = '', ht = false;
+function timeline(goals, showHT, ftLabel, showET, head = [0, 0]) {
+  const gs = [...goals].sort((a, b) => (a.h || 1) - (b.h || 1) || (a.m || 0) - (b.m || 0) || (a.x || 0) - (b.x || 0));
+  let l = head[0], r = head[1], html = '', ht = false, et = false;
+  if (l || r) html += `<div class="ev ht"><span>Head start ${l} &ndash; ${r}</span></div>`;
   const htRow = () => `<div class="ev ht"><span>HT ${l} &ndash; ${r}</span></div>`;
+  const etRow = () => `<div class="ev ht"><span>Extra time ${l} &ndash; ${r}</span></div>`;
   for (const g of gs) {
-    if (g.h === 2 && !ht) { html += htRow(); ht = true; }
+    if (g.h >= 2 && !ht) { html += htRow(); ht = true; }
+    if (g.h === 3 && !et) { html += etRow(); et = true; }
     if (g.side === 'L') l++; else r++;
     const name = esc(state.players[g.p] || '?');
     html += `<div class="ev"><span class="evl">${g.side === 'L' ? name + ' &#9917;' : ''}</span>
-      <span class="evm">${g.m ? g.m + "'" : '&nbsp;'}<small>${l}&ndash;${r}</small></span>
+      <span class="evm">${g.x ? g.m + '+' + g.x + "'" : g.m ? g.m + "'" : '&nbsp;'}<small>${l}&ndash;${r}</small></span>
       <span class="evr">${g.side === 'R' ? '&#9917; ' + name : ''}</span></div>`;
   }
   if (showHT && !ht) html += htRow();
+  if (showET && !et) html += etRow();                    // extra time has started but nothing happened yet
   if (ftLabel) html += `<div class="ev ht"><span>${ftLabel} ${l} &ndash; ${r}</span></div>`;
   return html || '<div class="empty" style="padding:12px">No goals yet</div>';
 }
@@ -309,7 +318,7 @@ function renderMatches() {
     const when = new Date(m.t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     return `<div class="mrow" data-id="${esc(m.id)}"><span>${esc(pairName(pl, m.k))} <b>${m.dg} &ndash; ${m.sg}</b> ${esc(pl[m.k])}</span>
       <small>${when} &middot; tap for goals</small><button data-del="${esc(m.id)}" aria-label="Delete match">&#10005;</button>
-      ${openMatches.has(m.id) ? `<div class="tl">${timeline(m.goals.map(g => ({ side: g.s === 'd' ? 'L' : 'R', p: g.p, m: g.m, h: g.h })), true, 'FT')}</div>` : ''}</div>`;
+      ${openMatches.has(m.id) ? `<div class="tl">${timeline(m.goals.map(g => ({ side: g.s === 'd' ? 'L' : 'R', p: g.p, m: g.m, h: g.h, x: g.x })), true, 'FT', false, [0, m.hs || 0])}</div>` : ''}</div>`;
   }).join('') : '<div class="empty">No matches yet. Hit "Start match".</div>';
 }
 $('matches').addEventListener('click', e => {
@@ -327,10 +336,18 @@ $('matches').addEventListener('click', e => {
 
 function renderPlayers() {
   $('players').innerHTML = state.players.map((p, i) =>
-    `<input type="text" data-i="${i}" value="${esc(p)}" maxlength="16" aria-label="Player ${i + 1}">`).join('');
+    `<div class="pl"><input type="text" data-i="${i}" value="${esc(p)}" maxlength="16" aria-label="Player ${i + 1}">
+      <label>Head start alone <input type="number" data-h="${i}" min="0" max="20" value="${state.handicap[i]}" inputmode="numeric"></label></div>`).join('');
 }
 $('players').addEventListener('change', e => {
-  const i = e.target.dataset.i; if (i === undefined) return;
+  const { i, h } = e.target.dataset;
+  if (h !== undefined) {                                   // head start when this player plays alone
+    state.handicap[h] = Math.min(20, Math.max(0, +e.target.value | 0));
+    renderAll();
+    remote(updateDoc(leagueRef, { handicap: state.handicap }));
+    return;
+  }
+  if (i === undefined) return;
   state.players[i] = e.target.value.trim() || state.players[i];
   renderAll();
   remote(updateDoc(leagueRef, { players: state.players }));
@@ -389,7 +406,7 @@ $('newLeague').addEventListener('submit', e => {
   const name = $('newName').value.trim();
   if (!name || !leaguesCol) return;
   const ref = doc(leaguesCol);
-  const l = { name, players: [...DEFAULT_PLAYERS], matches: [], createdAt: Date.now() };
+  const l = { name, players: [...DEFAULT_PLAYERS], handicap: [...DEFAULT_HANDICAP], matches: [], createdAt: Date.now() };
   leagues[ref.id] = l; $('newName').value = '';
   remote(setDoc(ref, l));
   openLeague(ref.id);
@@ -410,7 +427,8 @@ function renderLineup() {
   const ok = lu.A.length + lu.B.length === 3;
   $('lGo').disabled = !ok;
   const side = z => lu[z].map(p => pl[p]).join(' & ');
-  $('lVs').textContent = ok ? `${side('A')}  vs  ${side('B')}` : 'Place all three players.';
+  const solo = lu.A.length === 1 ? lu.A[0] : lu.B[0], hs = ok ? state.handicap[solo] : 0;
+  $('lVs').textContent = ok ? `${side('A')}  vs  ${side('B')}` + (hs ? `  ·  ${pl[solo]} starts ${hs} up` : '') : 'Place all three players.';
 }
 $('lineup').addEventListener('pointerdown', e => {
   const c = e.target.closest('.chip'); if (!c) return;
@@ -446,13 +464,16 @@ $('startMatch').onclick = () => {
 $('lCancel').onclick = () => { $('lineup').hidden = true; };
 
 // ---- Live match: score taps, who-scored question for the pair, half timers ----
-// phases: ready -> h1 -> ht (half time) -> [brk (optional break timer) -> ht] -> h2 -> ft (full time).
+// phases: ready -> h1 -> ht (half time) -> [brk (optional break timer) -> ht] -> h2 -> et (extra time, automatic) -> ft (full time).
 // After the 1st half you can start the 2nd half right away or start the break timer first.
 // The clock runs off timestamps, and the match is kept in localStorage, so a locked phone or reload doesn't lose it.
 let match = null, tickId = null, audioCtx = null, wake = null;
-const PHASE = { ready: 'Ready', h1: '1st half', ht: 'Half time', brk: 'Break', h2: '2nd half', ft: 'Full time' };
+const PHASE = { ready: 'Ready', h1: '1st half', ht: 'Half time', brk: 'Break', h2: '2nd half', et: 'Extra time', ft: 'Full time' };
+const EXTRA_MS = 60000;      // extra time after the 2nd half: starts by itself and lasts one minute
 const saveMatch = () => { try { localStorage.setItem('mini-prem-match-' + match.lid, JSON.stringify(match)); } catch {} };
-const goalsOf = s => match.goals.filter(g => g.s === s).length;
+const goalsOf = s => match.goals.filter(g => g.s === s).length;                       // goals actually scored
+const headStart = s => match[s].length === 1 ? match.hs || 0 : 0;                     // the solo side starts ahead
+const scoreOf = s => goalsOf(s) + headStart(s);
 const sideName = s => match[s].map(p => state.players[p]).join(' & ');
 
 // The alarm is alarm.mp3 (about 30 s); it stops when someone taps the main button. Phones only allow
@@ -474,10 +495,14 @@ function alarm() {
   alarmAudio.currentTime = 0;
   alarmAudio.play().catch(beep);
 }
-function beep() {
+function signal() {                                       // short double beep + buzz: extra time has started
+  try { navigator.vibrate?.([200, 100, 200]); } catch {}
+  beep(2);
+}
+function beep(n = 6) {
   const c = audioCtx; if (!c) return;
   c.resume?.();
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < n; i++) {
     const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + i * 0.45;
     o.type = 'square'; o.frequency.value = i % 2 ? 880 : 660; g.gain.value = 0.25;
     o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.35);
@@ -490,9 +515,10 @@ document.addEventListener('visibilitychange', () => { if (match && document.visi
 function renderMatch() {
   const m = match, left = m.running ? Math.max(0, m.endAt - Date.now()) : m.remMs, s = Math.ceil(left / 1000);
   $('mHome').textContent = sideName('A'); $('mAway').textContent = sideName('B');
-  $('mHKind').textContent = m.A.length === 2 ? 'Pair' : 'Solo'; $('mAKind').textContent = m.B.length === 2 ? 'Pair' : 'Solo';
-  $('mHS').textContent = goalsOf('A'); $('mAS').textContent = goalsOf('B');
-  $('mPhase').textContent = PHASE[m.phase] + (!m.running && (m.phase === 'h1' || m.phase === 'h2') ? ' · paused' : '');
+  const kind = s => match[s].length === 2 ? 'Pair' : 'Solo' + (match.hs ? ` · starts ${match.hs} up` : '');
+  $('mHKind').textContent = kind('A'); $('mAKind').textContent = kind('B');
+  $('mHS').textContent = scoreOf('A'); $('mAS').textContent = scoreOf('B');
+  $('mPhase').textContent = PHASE[m.phase] + (!m.running && ['h1', 'h2', 'et'].includes(m.phase) ? ' · paused' : '');
   $('mClock').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   $('mClock').classList.toggle('done', m.phase === 'ht' || m.phase === 'ft');
   $('mMain').textContent = { ready: 'Kick off', ht: 'Start 2nd half', brk: 'Skip break · start 2nd half', ft: 'Finish & update table' }[m.phase] || (m.running ? 'Pause' : 'Resume');
@@ -500,25 +526,35 @@ function renderMatch() {
   const tk = JSON.stringify(m.goals) + m.phase;          // only rebuild the timeline when something changed
   if (tk !== renderMatch.last) {
     renderMatch.last = tk;
-    $('mTimeline').innerHTML = timeline(m.goals.map(g => ({ side: g.s === 'A' ? 'L' : 'R', p: g.p, m: g.m, h: g.h })),
-      ['ht', 'brk', 'h2', 'ft'].includes(m.phase), m.phase === 'ft' ? 'FT' : '');
+    $('mTimeline').innerHTML = timeline(m.goals.map(g => ({ side: g.s === 'A' ? 'L' : 'R', p: g.p, m: g.m, h: g.h, x: g.x })),
+      ['ht', 'brk', 'h2', 'et', 'ft'].includes(m.phase), m.phase === 'ft' ? 'FT' : '', ['et', 'ft'].includes(m.phase),
+      [headStart('A'), headStart('B')]);
     $('mTimeline').scrollTop = $('mTimeline').scrollHeight;
   }
 }
 // Minute and half of "now" in the match (2nd half continues counting after the 1st).
 function nowMinute() {
   const m = match, left = m.running ? Math.max(0, m.endAt - Date.now()) : m.remMs;
-  const h = m.phase === 'h2' || m.phase === 'ft' ? 2 : 1;
+  if (m.phase === 'et' || m.phase === 'ft') {              // extra time shows as e.g. 14+1'
+    const el = m.phase === 'ft' ? EXTRA_MS : EXTRA_MS - left;
+    return { h: 3, m: 2 * m.mins, x: Math.max(1, Math.ceil(el / 60000)) };
+  }
+  const h = m.phase === 'h2' ? 2 : 1;
   const elapsed = m.phase === 'ready' ? 0 : m.phase === 'brk' ? m.mins * 60000 : m.mins * 60000 - left;
   return { h, m: (h === 2 ? m.mins : 0) + Math.max(1, Math.ceil(elapsed / 60000)) };
 }
 function tick() {
   if (!match || !match.running) return;
   if (match.endAt - Date.now() <= 0) {
-    match.running = false; match.remMs = 0;
-    if (match.phase === 'brk') match.breakDone = true;
-    match.phase = match.phase === 'h2' ? 'ft' : 'ht';    // h1 and brk both end at half time
-    saveMatch(); alarm();
+    if (match.phase === 'h2') {                          // extra time follows by itself, with a short signal
+      match.phase = 'et'; match.endAt += EXTRA_MS; match.remMs = EXTRA_MS; saveMatch(); signal();
+    }
+    if (match.endAt - Date.now() <= 0) {
+      match.running = false; match.remMs = 0;
+      if (match.phase === 'brk') match.breakDone = true;
+      match.phase = match.phase === 'et' ? 'ft' : 'ht';  // h1 and brk both end at half time
+      saveMatch(); alarm();
+    }
   }
   renderMatch();
 }
@@ -542,7 +578,8 @@ $('lGo').onclick = () => {
   const mins = Math.min(60, Math.max(1, +$('mins').value || 7));
   const breakMins = Math.min(15, Math.max(1, +$('brkMins').value || 2));
   try { localStorage.setItem('mini-prem-mins', mins); localStorage.setItem('mini-prem-brk', breakMins); } catch {}
-  match = { lid: currentId, A: [...lu.A], B: [...lu.B], goals: [], phase: 'ready', running: false, mins, breakMins, breakDone: false, remMs: mins * 60000, endAt: 0 };
+  const soloP = lu.A.length === 1 ? lu.A[0] : lu.B[0];
+  match = { lid: currentId, A: [...lu.A], B: [...lu.B], hs: state.handicap[soloP] || 0, goals: [], phase: 'ready', running: false, mins, breakMins, breakDone: false, remMs: mins * 60000, endAt: 0 };
   saveMatch(); openMatch();
 };
 $('mMain').onclick = () => {
@@ -552,8 +589,9 @@ $('mMain').onclick = () => {
   else if (m.phase === 'ht' || m.phase === 'brk') begin('h2');
   else if (m.phase === 'ft') {
     const dS = m.A.length === 2 ? 'A' : 'B', sS = dS === 'A' ? 'B' : 'A';
-    const rec = { id: Date.now().toString(36), t: Date.now(), k: m[sS][0], dg: goalsOf(dS), sg: goalsOf(sS),
-      goals: m.goals.map(g => ({ s: g.s === dS ? 'd' : 's', p: g.p, m: g.m, h: g.h })) };
+    // dg / sg are the final scores: they include the solo player's head start (hs), which no one "scored".
+    const rec = { id: Date.now().toString(36), t: Date.now(), k: m[sS][0], dg: scoreOf(dS), sg: scoreOf(sS), hs: m.hs || 0,
+      goals: m.goals.map(g => ({ s: g.s === dS ? 'd' : 's', p: g.p, m: g.m, h: g.h, ...(g.x ? { x: g.x } : {}) })) };
     state.matches.push(rec);
     remote(updateDoc(doc(leaguesCol, m.lid), { matches: arrayUnion(rec) }));
     closeMatch(); renderAll();
@@ -587,6 +625,7 @@ async function start(code) {
     snap.forEach(d => {
       const v = d.data();
       next[d.id] = { name: v.name || 'League', players: Array.isArray(v.players) && v.players.length === 3 ? v.players : [...DEFAULT_PLAYERS],
+        handicap: Array.isArray(v.handicap) && v.handicap.length === 3 ? v.handicap : [...DEFAULT_HANDICAP],
         matches: Array.isArray(v.matches) ? v.matches : [], createdAt: v.createdAt || 0 };
     });
     if (currentId && snap.metadata.hasPendingWrites && next[currentId]) next[currentId] = leagues[currentId] || next[currentId];  // our own edit, already shown
