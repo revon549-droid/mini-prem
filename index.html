@@ -412,9 +412,26 @@ const saveMatch = () => { try { localStorage.setItem('mini-prem-match-' + match.
 const goalsOf = s => match.goals.filter(g => g.s === s).length;
 const sideName = s => match[s].map(p => state.players[p]).join(' & ');
 
-function unlockAudio() { try { audioCtx ||= new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch {} }
+// The alarm is alarm.mp3 (about 30 s); it stops when someone taps the main button. Phones only allow
+// sound after a tap, so the first tap "unlocks" it. If the file can't play, a synthesized beep is used.
+const alarmAudio = new Audio('alarm.mp3'); alarmAudio.preload = 'auto';
+let audioUnlocked = false;
+function unlockAudio() {
+  try { audioCtx ||= new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch {}
+  if (!audioUnlocked) {
+    audioUnlocked = true;
+    alarmAudio.muted = true;
+    alarmAudio.play().then(() => { alarmAudio.pause(); alarmAudio.currentTime = 0; alarmAudio.muted = false; })
+      .catch(() => { audioUnlocked = false; alarmAudio.muted = false; });
+  }
+}
+function stopAlarm() { try { alarmAudio.pause(); alarmAudio.currentTime = 0; } catch {} try { navigator.vibrate?.(0); } catch {} }
 function alarm() {
   try { navigator.vibrate?.([400, 200, 400, 200, 800]); } catch {}
+  alarmAudio.currentTime = 0;
+  alarmAudio.play().catch(beep);
+}
+function beep() {
   const c = audioCtx; if (!c) return;
   c.resume?.();
   for (let i = 0; i < 6; i++) {
@@ -452,7 +469,7 @@ function openMatch() {
   if (match.running || match.phase !== 'ready') wakeOn();
 }
 function closeMatch() {
-  clearInterval(tickId); $('matchView').hidden = true; wakeOff();
+  clearInterval(tickId); $('matchView').hidden = true; wakeOff(); stopAlarm();
   try { localStorage.removeItem('mini-prem-match-' + match.lid); } catch {}
   match = null;
 }
@@ -469,7 +486,7 @@ $('lGo').onclick = () => {
   saveMatch(); openMatch();
 };
 $('mMain').onclick = () => {
-  unlockAudio();
+  unlockAudio(); stopAlarm();
   const m = match;
   if (m.phase === 'ready') begin('h1');
   else if (m.phase === 'ht') begin('h2');
