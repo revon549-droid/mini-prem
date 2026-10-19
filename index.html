@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Prem</title>
+<style>
+  :root {
+    --bg: #12081f; --card: #1e1233; --line: #33264d; --text: #f3eefc; --muted: #9a8bb8;
+    --accent: #00ff85; --accent2: #e90052; --win: #00c46a; --draw: #8a7fa3; --loss: #e90052;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { margin: 8px 0 16px; font-size: 28px; letter-spacing: -.5px; }
+  h1 span { color: var(--accent); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin: 28px 0 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 6px; text-align: center; font-variant-numeric: tabular-nums; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); }
+  td.team, th.team { text-align: left; padding-left: 12px; }
+  tbody tr { border-bottom: 1px solid var(--line); }
+  tbody tr:last-child { border-bottom: 0; }
+  td.pos { width: 32px; color: var(--muted); }
+  tr.first td.pos { color: var(--accent); font-weight: 700; }
+  tr.first td.team { color: var(--accent); }
+  td.pts { font-weight: 800; }
+  .owner { display: block; font-size: 12px; color: var(--muted); }
+  .form { display: inline-flex; gap: 3px; }
+  .dot { width: 18px; height: 18px; border-radius: 50%; font-size: 10px; line-height: 18px; font-weight: 700; color: #000; }
+  .dot.W { background: var(--win); } .dot.D { background: var(--draw); } .dot.L { background: var(--loss); color: #fff; }
+  .md { padding: 8px 12px; font-size: 12px; color: var(--muted); background: #170d29; border-bottom: 1px solid var(--line); }
+  .fx { display: grid; grid-template-columns: 1fr 44px 14px 44px 1fr; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .fx:last-child { border-bottom: 0; }
+  .fx .h { text-align: right; } .fx .a { text-align: left; }
+  .fx .h, .fx .a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fx.played .h, .fx.played .a { color: var(--text); }
+  .fx:not(.played) .h, .fx:not(.played) .a { color: var(--muted); }
+  .fx > span.dash { text-align: center; color: var(--muted); }
+  input[type=number] { width: 100%; padding: 8px 4px; text-align: center; background: var(--bg); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; font: inherit; -moz-appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button { display: none; }
+  input[type=number]:focus, input[type=text]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .teams { padding: 12px; display: grid; gap: 8px; }
+  .teams div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  input[type=text] { width: 100%; padding: 8px 10px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.danger:hover { border-color: var(--accent2); color: var(--accent2); }
+  .hide-sm { display: none; }
+  @media (min-width: 560px) { .hide-sm { display: table-cell; } }
+  .empty { padding: 20px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mini <span>Prem</span></h1>
+
+  <h2>Table</h2>
+  <div class="card"><table id="table"></table></div>
+
+  <h2>Fixtures &amp; results</h2>
+  <div id="fixtures" class="card"></div>
+
+  <h2>Teams</h2>
+  <div class="card teams" id="teams"></div>
+
+  <div class="row">
+    <button id="export">Copy backup</button>
+    <button id="import">Paste backup</button>
+    <button id="reset" class="danger">Reset scores</button>
+  </div>
+  <p id="status" style="color:var(--muted);font-size:13px">Connecting…</p>
+</main>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+import { initializeFirestore, doc, onSnapshot, setDoc, updateDoc, deleteField }
+  from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
+
+// Web API keys are public identifiers; access is controlled by Firestore rules.
+const app = initializeApp({
+  apiKey: "AIzaSyDDQJ4m4X1LUUWve87MjJ1phbHbbsh2hyQ",
+  authDomain: "mini-prem.firebaseapp.com",
+  projectId: "mini-prem",
+  storageBucket: "mini-prem.firebasestorage.app",
+  messagingSenderId: "361716883278",
+  appId: "1:361716883278:web:1429d43c2f2318efc3081f",
+});
+const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+const leagueRef = doc(db, 'leagues', 'main');
+setTimeout(() => {
+  if (document.getElementById('status').textContent === 'Connecting…')
+    setStatus('Cannot reach the shared league (check Firestore is created and its rules allow access). Saving on this device only.');
+}, 10000);
+const remote = (p) => p.catch(err => { console.error(err); setStatus('Offline: changes are only saved on this device'); });
+const setStatus = (t) => { document.getElementById('status').textContent = t; };
+
+const KEY = 'mini-prem-v1';
+
+// state: teams [{name, owner}], results { "h-a": [hg, ag] }
+const defaults = () => ({
+  teams: [
+    { name: 'Team 1', owner: 'Me' },     { name: 'Team 2', owner: 'Me' },
+    { name: 'Team 3', owner: 'Friend 1' }, { name: 'Team 4', owner: 'Friend 1' },
+    { name: 'Team 5', owner: 'Friend 2' }, { name: 'Team 6', owner: 'Friend 2' },
+  ],
+  results: {},
+});
+
+let state;
+try { state = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch { state = defaults(); }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+
+// Double round-robin (circle method): everyone plays everyone home and away.
+function buildRounds(n) {
+  const ids = [...Array(n).keys()], rounds = [];
+  for (let r = 0; r < n - 1; r++) {
+    const m = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = ids[i], b = ids[n - 1 - i];
+      m.push(r % 2 ? [b, a] : [a, b]);
+    }
+    rounds.push(m);
+    ids.splice(1, 0, ids.pop());
+  }
+  return [...rounds, ...rounds.map(rd => rd.map(([h, a]) => [a, h]))];
+}
+const rounds = buildRounds(6);
+
+function standings() {
+  const rows = state.teams.map((t, i) => ({ i, ...t, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
+  for (const rd of rounds) for (const [h, a] of rd) {
+    const r = state.results[h + '-' + a];
+    if (!r) continue;
+    const [hg, ag] = r, H = rows[h], A = rows[a];
+    H.p++; A.p++; H.gf += hg; H.ga += ag; A.gf += ag; A.ga += hg;
+    if (hg > ag) { H.w++; A.l++; H.form.push('W'); A.form.push('L'); }
+    else if (hg < ag) { A.w++; H.l++; H.form.push('L'); A.form.push('W'); }
+    else { H.d++; A.d++; H.form.push('D'); A.form.push('D'); }
+  }
+  rows.forEach(r => { r.gd = r.gf - r.ga; r.pts = r.w * 3 + r.d; });
+  return rows.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.name.localeCompare(y.name));
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderTable() {
+  const rows = standings();
+  document.getElementById('table').innerHTML =
+    `<thead><tr><th>#</th><th class="team">Team</th><th>P</th><th>W</th><th>D</th><th>L</th>
+     <th class="hide-sm">GF</th><th class="hide-sm">GA</th><th>GD</th><th>Pts</th><th class="hide-sm">Form</th></tr></thead><tbody>` +
+    rows.map((r, k) => `<tr class="${k === 0 && r.p ? 'first' : ''}">
+      <td class="pos">${k + 1}</td>
+      <td class="team">${esc(r.name)}<span class="owner">${esc(r.owner)}</span></td>
+      <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
+      <td class="hide-sm">${r.gf}</td><td class="hide-sm">${r.ga}</td>
+      <td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td class="pts">${r.pts}</td>
+      <td class="hide-sm"><span class="form">${r.form.slice(-5).map(f => `<span class="dot ${f}">${f}</span>`).join('')}</span></td>
+    </tr>`).join('') + '</tbody>';
+}
+
+function renderFixtures() {
+  const el = document.getElementById('fixtures');
+  el.innerHTML = rounds.map((rd, k) => `<div class="md">Matchday ${k + 1}</div>` + rd.map(([h, a]) => {
+    const r = state.results[h + '-' + a];
+    return `<div class="fx ${r ? 'played' : ''}">
+      <span class="h">${esc(state.teams[h].name)}</span>
+      <input type="number" min="0" inputmode="numeric" data-k="${h}-${a}" data-s="0" value="${r ? r[0] : ''}" aria-label="Home goals">
+      <span class="dash">-</span>
+      <input type="number" min="0" inputmode="numeric" data-k="${h}-${a}" data-s="1" value="${r ? r[1] : ''}" aria-label="Away goals">
+      <span class="a">${esc(state.teams[a].name)}</span>
+    </div>`;
+  }).join('')).join('');
+}
+
+// Only update a result when both boxes are filled; clear it when both are empty.
+document.getElementById('fixtures').addEventListener('change', e => {
+  const k = e.target.dataset.k;
+  if (!k) return;
+  const [hi, ai] = [...document.querySelectorAll(`input[data-k="${k}"]`)];
+  const hv = hi.value.trim(), av = ai.value.trim();
+  if (hv === '' && av === '') {
+    delete state.results[k];
+    remote(updateDoc(leagueRef, { ['results.' + k]: deleteField() }));
+  } else if (hv !== '' && av !== '') {
+    state.results[k] = [Math.max(0, +hv | 0), Math.max(0, +av | 0)];
+    remote(setDoc(leagueRef, { results: { [k]: state.results[k] } }, { merge: true }));
+  } else return;
+  save(); renderTable();
+  hi.closest('.fx').classList.toggle('played', !!state.results[k]);
+});
+
+function renderTeams() {
+  document.getElementById('teams').innerHTML = state.teams.map((t, i) =>
+    `<div><input type="text" data-i="${i}" data-f="name" value="${esc(t.name)}" aria-label="Team name">
+          <input type="text" data-i="${i}" data-f="owner" value="${esc(t.owner)}" aria-label="Owner"></div>`).join('');
+}
+document.getElementById('teams').addEventListener('change', e => {
+  const { i, f } = e.target.dataset;
+  if (i === undefined) return;
+  state.teams[i][f] = e.target.value.trim() || state.teams[i][f];
+  save(); renderAll();
+  remote(setDoc(leagueRef, { teams: state.teams }, { merge: true }));
+});
+
+function renderAll() { renderTable(); renderFixtures(); renderTeams(); }
+
+document.getElementById('reset').onclick = () => {
+  if (confirm('Clear ALL scores for everyone? Team names are kept.')) {
+    state.results = {}; save(); renderAll();
+    remote(setDoc(leagueRef, { teams: state.teams, results: {} }));
+  }
+};
+document.getElementById('export').onclick = async () => {
+  const txt = JSON.stringify(state);
+  try { await navigator.clipboard.writeText(txt); alert('Backup copied. Paste it somewhere safe.'); }
+  catch { prompt('Copy this backup:', txt); }
+};
+document.getElementById('import').onclick = () => {
+  const txt = prompt('Paste backup:');
+  if (!txt) return;
+  try {
+    const s = JSON.parse(txt);
+    if (!Array.isArray(s.teams) || s.teams.length !== 6 || typeof s.results !== 'object') throw 0;
+    state = s; save(); renderAll();
+    remote(setDoc(leagueRef, state));
+  } catch { alert("That doesn't look like a Mini Prem backup."); }
+};
+
+renderAll();
+
+// Live sync: everyone who opens the page sees the same league.
+onSnapshot(leagueRef, snap => {
+  if (!snap.exists()) { remote(setDoc(leagueRef, state)); return; }   // first ever open: seed the cloud
+  setStatus('Live: shared with everyone');
+  if (snap.metadata.hasPendingWrites) return;                          // our own edit, already shown
+  const d = snap.data();
+  state = { teams: d.teams || state.teams, results: d.results || {} };
+  save(); renderAll();
+}, err => { console.error(err); setStatus('Offline: changes are only saved on this device'); });
+</script>
+</body>
+</html>
