@@ -104,6 +104,7 @@
 
     <div class="row">
       <button id="reset" class="danger">Reset scores</button>
+      <button id="delLeague" class="danger">Delete league</button>
     </div>
   </section>
 
@@ -113,7 +114,7 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
-import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteField }
+import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, deleteField }
   from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
 // Web API keys are public identifiers; access is controlled by Firestore rules.
@@ -279,6 +280,14 @@ document.getElementById('leagueList').addEventListener('click', e => {
   const b = e.target.closest('.lg'); if (b) openLeague(b.dataset.id);
 });
 document.getElementById('back').onclick = () => openLeague(null);
+document.getElementById('delLeague').onclick = () => {
+  const id = currentId;
+  if (!id || !confirm(`Delete "${leagues[id].name}" for everyone? This cannot be undone.`)) return;
+  const ref = doc(leaguesCol, id);
+  delete leagues[id];
+  openLeague(null);
+  remote(deleteDoc(ref));
+};
 document.getElementById('newLeague').addEventListener('submit', e => {
   e.preventDefault();
   const input = document.getElementById('newName'), name = input.value.trim();
