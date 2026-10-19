@@ -130,7 +130,8 @@
     <div class="zone" data-zone="B"><h3>Side B</h3><div class="chips" id="cB"></div></div>
   </div>
   <div id="lVs"></div>
-  <label>Half length <input type="number" id="mins" min="1" max="60" value="7" inputmode="numeric"> min</label>
+  <label>Half length <input type="number" id="mins" min="1" max="60" value="7" inputmode="numeric"> min
+    &nbsp; Break <input type="number" id="brkMins" min="1" max="15" value="2" inputmode="numeric"> min</label>
   <button id="lGo" class="primary big" disabled>Start match</button>
 </div>
 
@@ -153,6 +154,7 @@
     </div>
   </div>
   <div id="mTimeline" class="card tl"></div>
+  <button id="mBreak" class="big" hidden>Start break</button>
   <button id="mMain" class="primary big"></button>
 </div>
 
@@ -438,16 +440,17 @@ $('lineup').addEventListener('pointerdown', e => {
 });
 $('startMatch').onclick = () => {
   lu = { pool: [0, 1, 2], A: [], B: [] };
-  try { $('mins').value = localStorage.getItem('mini-prem-mins') || $('mins').value; } catch {}
+  try { $('mins').value = localStorage.getItem('mini-prem-mins') || $('mins').value; $('brkMins').value = localStorage.getItem('mini-prem-brk') || $('brkMins').value; } catch {}
   $('lineup').hidden = false; renderLineup();
 };
 $('lCancel').onclick = () => { $('lineup').hidden = true; };
 
 // ---- Live match: score taps, who-scored question for the pair, half timers ----
-// phases: ready -> h1 -> ht (half time) -> h2 -> ft (full time). The clock runs off timestamps,
-// and the match is kept in localStorage, so a locked phone or reload doesn't lose it.
+// phases: ready -> h1 -> ht (half time) -> [brk (optional break timer) -> ht] -> h2 -> ft (full time).
+// After the 1st half you can start the 2nd half right away or start the break timer first.
+// The clock runs off timestamps, and the match is kept in localStorage, so a locked phone or reload doesn't lose it.
 let match = null, tickId = null, audioCtx = null, wake = null;
-const PHASE = { ready: 'Ready', h1: '1st half', ht: 'Half time', h2: '2nd half', ft: 'Full time' };
+const PHASE = { ready: 'Ready', h1: '1st half', ht: 'Half time', brk: 'Break', h2: '2nd half', ft: 'Full time' };
 const saveMatch = () => { try { localStorage.setItem('mini-prem-match-' + match.lid, JSON.stringify(match)); } catch {} };
 const goalsOf = s => match.goals.filter(g => g.s === s).length;
 const sideName = s => match[s].map(p => state.players[p]).join(' & ');
@@ -492,12 +495,13 @@ function renderMatch() {
   $('mPhase').textContent = PHASE[m.phase] + (!m.running && (m.phase === 'h1' || m.phase === 'h2') ? ' · paused' : '');
   $('mClock').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   $('mClock').classList.toggle('done', m.phase === 'ht' || m.phase === 'ft');
-  $('mMain').textContent = { ready: 'Kick off', ht: 'Start 2nd half', ft: 'Finish & update table' }[m.phase] || (m.running ? 'Pause' : 'Resume');
+  $('mMain').textContent = { ready: 'Kick off', ht: 'Start 2nd half', brk: 'Skip break · start 2nd half', ft: 'Finish & update table' }[m.phase] || (m.running ? 'Pause' : 'Resume');
+  $('mBreak').hidden = !(m.phase === 'ht' && !m.breakDone);
   const tk = JSON.stringify(m.goals) + m.phase;          // only rebuild the timeline when something changed
   if (tk !== renderMatch.last) {
     renderMatch.last = tk;
     $('mTimeline').innerHTML = timeline(m.goals.map(g => ({ side: g.s === 'A' ? 'L' : 'R', p: g.p, m: g.m, h: g.h })),
-      ['ht', 'h2', 'ft'].includes(m.phase), m.phase === 'ft' ? 'FT' : '');
+      ['ht', 'brk', 'h2', 'ft'].includes(m.phase), m.phase === 'ft' ? 'FT' : '');
     $('mTimeline').scrollTop = $('mTimeline').scrollHeight;
   }
 }
@@ -505,14 +509,15 @@ function renderMatch() {
 function nowMinute() {
   const m = match, left = m.running ? Math.max(0, m.endAt - Date.now()) : m.remMs;
   const h = m.phase === 'h2' || m.phase === 'ft' ? 2 : 1;
-  const elapsed = m.phase === 'ready' ? 0 : m.mins * 60000 - left;
+  const elapsed = m.phase === 'ready' ? 0 : m.phase === 'brk' ? m.mins * 60000 : m.mins * 60000 - left;
   return { h, m: (h === 2 ? m.mins : 0) + Math.max(1, Math.ceil(elapsed / 60000)) };
 }
 function tick() {
   if (!match || !match.running) return;
   if (match.endAt - Date.now() <= 0) {
     match.running = false; match.remMs = 0;
-    match.phase = match.phase === 'h1' ? 'ht' : 'ft';
+    if (match.phase === 'brk') match.breakDone = true;
+    match.phase = match.phase === 'h2' ? 'ft' : 'ht';    // h1 and brk both end at half time
     saveMatch(); alarm();
   }
   renderMatch();
@@ -529,21 +534,22 @@ function closeMatch() {
 }
 function begin(phase) {
   unlockAudio();
-  match.phase = phase; match.remMs = match.mins * 60000; match.endAt = Date.now() + match.remMs; match.running = true;
+  match.phase = phase; match.remMs = (phase === 'brk' ? match.breakMins || 2 : match.mins) * 60000; match.endAt = Date.now() + match.remMs; match.running = true;
   saveMatch(); wakeOn(); renderMatch();
 }
 $('lGo').onclick = () => {
   unlockAudio();
   const mins = Math.min(60, Math.max(1, +$('mins').value || 7));
-  try { localStorage.setItem('mini-prem-mins', mins); } catch {}
-  match = { lid: currentId, A: [...lu.A], B: [...lu.B], goals: [], phase: 'ready', running: false, mins, remMs: mins * 60000, endAt: 0 };
+  const breakMins = Math.min(15, Math.max(1, +$('brkMins').value || 2));
+  try { localStorage.setItem('mini-prem-mins', mins); localStorage.setItem('mini-prem-brk', breakMins); } catch {}
+  match = { lid: currentId, A: [...lu.A], B: [...lu.B], goals: [], phase: 'ready', running: false, mins, breakMins, breakDone: false, remMs: mins * 60000, endAt: 0 };
   saveMatch(); openMatch();
 };
 $('mMain').onclick = () => {
   unlockAudio(); stopAlarm();
   const m = match;
   if (m.phase === 'ready') begin('h1');
-  else if (m.phase === 'ht') begin('h2');
+  else if (m.phase === 'ht' || m.phase === 'brk') begin('h2');
   else if (m.phase === 'ft') {
     const dS = m.A.length === 2 ? 'A' : 'B', sS = dS === 'A' ? 'B' : 'A';
     const rec = { id: Date.now().toString(36), t: Date.now(), k: m[sS][0], dg: goalsOf(dS), sg: goalsOf(sS),
@@ -554,6 +560,7 @@ $('mMain').onclick = () => {
   } else if (m.running) { m.remMs = Math.max(0, m.endAt - Date.now()); m.running = false; saveMatch(); renderMatch(); }
   else { m.endAt = Date.now() + m.remMs; m.running = true; saveMatch(); renderMatch(); }
 };
+$('mBreak').onclick = () => { unlockAudio(); stopAlarm(); begin('brk'); };
 // A goal for the solo player needs no question; for a pair we ask which of the two scored.
 function goal(s) {
   const ps = match[s], at = nowMinute();                 // the minute is taken when +1 is tapped, not after the question
