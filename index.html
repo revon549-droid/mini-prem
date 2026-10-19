@@ -235,22 +235,25 @@ const setStatus = t => { $('status').textContent = t; };
 const remote = p => p.catch(err => { console.error(err); setStatus('Could not save: ' + (err.code || 'offline')); });
 
 // ---- Model ----
-// Three players. Six teams: the three players alone (team 0-2) and the three pairs (team 3-5).
-// A match is always a pair against the remaining player, so there are only three possible match-ups.
-// Match k = player k plays alone against the other two; the pair team is 5 - k.
+// Three players, one table row each. A match is always two of them against the third, so there are only
+// three possible match-ups. Match k = player k plays alone against the other two (the pair).
 // A stored match: { id, t, k, dg (pair goals), sg (solo goals), goals: [{ s: 'd'|'s', p: scorer index }] }
 const DEFAULT_PLAYERS = ['Leo', 'Lukas', 'Tom'];
 const pairOf = k => [0, 1, 2].filter(x => x !== k);
-const teamName = (pl, i) => i < 3 ? pl[i] : pairOf(5 - i).map(x => pl[x]).join(' & ');
+const pairName = (pl, k) => pairOf(k).map(x => pl[x]).join(' & ');
 
+// The table has one row per player. In a match every member of the winning side gets the points
+// separately (3 for a win, 1 for a draw), and each player is credited with his side's goals.
 function standings(l) {
-  const rows = [0, 1, 2, 3, 4, 5].map(i => ({ i, name: teamName(l.players, i), kind: i < 3 ? 'Solo' : 'Pair',
-    p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
+  const rows = [0, 1, 2].map(i => ({ i, name: l.players[i], p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }));
   const add = (r, gf, ga) => {
     r.p++; r.gf += gf; r.ga += ga;
     if (gf > ga) { r.w++; r.form.push('W'); } else if (gf < ga) { r.l++; r.form.push('L'); } else { r.d++; r.form.push('D'); }
   };
-  for (const m of [...l.matches].sort((a, b) => a.t - b.t)) { add(rows[m.k], m.sg, m.dg); add(rows[5 - m.k], m.dg, m.sg); }
+  for (const m of [...l.matches].sort((a, b) => a.t - b.t)) {
+    add(rows[m.k], m.sg, m.dg);
+    pairOf(m.k).forEach(i => add(rows[i], m.dg, m.sg));
+  }
   rows.forEach(r => { r.gd = r.gf - r.ga; r.pts = r.w * 3 + r.d; });
   return rows.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.name.localeCompare(y.name));
 }
@@ -259,11 +262,11 @@ function standings(l) {
 function renderTable() {
   const rows = standings(state);
   $('table').innerHTML =
-    `<thead><tr><th>#</th><th class="team">Team</th><th>P</th><th>W</th><th>D</th><th>L</th>
+    `<thead><tr><th>#</th><th class="team">Player</th><th>P</th><th>W</th><th>D</th><th>L</th>
      <th class="hide-sm">GF</th><th class="hide-sm">GA</th><th>GD</th><th>Pts</th><th class="hide-sm">Form</th></tr></thead><tbody>` +
     rows.map((r, k) => `<tr class="${k === 0 && r.p ? 'first' : ''}">
       <td class="pos">${k + 1}</td>
-      <td class="team">${esc(r.name)}<span class="owner">${r.kind}</span></td>
+      <td class="team">${esc(r.name)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
       <td class="hide-sm">${r.gf}</td><td class="hide-sm">${r.ga}</td>
       <td>${r.gd > 0 ? '+' : ''}${r.gd}</td><td class="pts">${r.pts}</td>
@@ -302,7 +305,7 @@ function renderMatches() {
   const pl = state.players;
   $('matches').innerHTML = state.matches.length ? [...state.matches].sort((a, b) => b.t - a.t).map(m => {
     const when = new Date(m.t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    return `<div class="mrow" data-id="${esc(m.id)}"><span>${esc(teamName(pl, 5 - m.k))} <b>${m.dg} &ndash; ${m.sg}</b> ${esc(pl[m.k])}</span>
+    return `<div class="mrow" data-id="${esc(m.id)}"><span>${esc(pairName(pl, m.k))} <b>${m.dg} &ndash; ${m.sg}</b> ${esc(pl[m.k])}</span>
       <small>${when} &middot; tap for goals</small><button data-del="${esc(m.id)}" aria-label="Delete match">&#10005;</button>
       ${openMatches.has(m.id) ? `<div class="tl">${timeline(m.goals.map(g => ({ side: g.s === 'd' ? 'L' : 'R', p: g.p, m: g.m, h: g.h })), true, 'FT')}</div>` : ''}</div>`;
   }).join('') : '<div class="empty">No matches yet. Hit "Start match".</div>';
